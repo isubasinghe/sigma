@@ -2,10 +2,9 @@ use std::marker::PhantomData;
 use super::address::Address;
 
 
-pub enum Either<L, R> {
-    Left(L),
-    Right(R)
-}
+
+
+
 
 pub enum ClientError {}
 
@@ -27,7 +26,7 @@ impl<T> Client<T>
 where 
     T: UnInitialisedState
 {
-    pub async fn connect(self) -> Either<Client<LockingMode>, (Client<UnInitialisedMode>, ClientError)> { 
+    pub async fn connect(self) -> Result<Client<LockingMode>, (Client<UnInitialisedMode>, ClientError)> { 
         unimplemented!();
     }
 }
@@ -36,7 +35,7 @@ impl<T> Client<T>
 where
     T: LockingState
 {
-    pub async fn lock(self) -> Either<Client<UnlockingMode>, ()> {
+    pub async fn lock(self) -> Result<Client<UnlockingMode>, ()> {
         unimplemented!();
     }
 }
@@ -45,7 +44,7 @@ impl<T> Client<T>
 where
     T: UnlockingState
 {
-    pub async fn unlock(self) -> Either<Client<LockingMode>, ()> {
+    pub async fn unlock(self) -> Result<Client<LockingMode>, ()> {
         unimplemented!();
     }
 }
