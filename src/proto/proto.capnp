@@ -12,3 +12,9 @@ enum RegisterClientRes {
 struct MakeLock {
     lockId @0 :UInt64;
 }
+
+struct Pair {
+    id @0 :UInt64;
+    timestamp @1 :UInt64;
+}
+

@@ -1,12 +1,19 @@
 use std::marker::PhantomData;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use super::address::Address;
 
+static TIMESTAMP_COUNTER :AtomicU64 = AtomicU64::new(0);
+pub fn get_lamport_time() -> u64 {
+    TIMESTAMP_COUNTER.fetch_add(1, Ordering::SeqCst)
+}
 
 
 
 
-
-pub enum ClientError {}
+pub enum ClientError {
+    
+}
 
 
 pub struct Client<T> 
@@ -26,7 +33,7 @@ impl<T> Client<T>
 where 
     T: UnInitialisedState
 {
-    pub async fn connect(self) -> Result<Client<LockingMode>, (Client<UnInitialisedMode>, ClientError)> { 
+    pub async fn connect(self) -> Result<Client<UnlockingMode>, (Client<UnInitialisedMode>, ClientError)> { 
         unimplemented!();
     }
 }
