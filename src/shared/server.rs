@@ -1,5 +1,5 @@
-use tokio::sync::mpsc;
 use crate::shared::proto_capnp::pair;
+use tokio::sync::mpsc;
 
 pub struct Server<T> {
     receiver: mpsc::Receiver<T>,
@@ -20,4 +20,8 @@ impl<T> Server<T> {
             tx,
         )
     }
+
+    pub async fn release(&mut self) {}
+
+    pub async fn yield_lock(&mut self) {}
 }
