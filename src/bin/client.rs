@@ -1,3 +1,2 @@
 use sigma::shared::cli::*;
-fn main() {
-}
+fn main() {}

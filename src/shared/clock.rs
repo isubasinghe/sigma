@@ -1,4 +1,4 @@
-// Lamport clock 
+// Lamport clock
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static CLOCK: AtomicUsize = AtomicUsize::new(0);
