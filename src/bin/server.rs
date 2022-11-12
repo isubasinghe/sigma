@@ -1,6 +1,4 @@
 use capnp::serialize_packed;
-use message_io::network::{Endpoint, NetEvent, Transport};
-use message_io::node;
 use sigma::shared::server::*;
 use std::net::ToSocketAddrs;
 use std::time::Duration;
@@ -13,6 +11,8 @@ use opentelemetry::sdk::Resource;
 use opentelemetry::KeyValue;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
+use tokio::net::UdpSocket;
+use std::io;
 
 const PORT: u16 = 3001;
 
@@ -46,32 +46,16 @@ async fn main() {
 
 
     let addr = ("0.0.0.0", PORT).to_socket_addrs().unwrap().next().unwrap();
-    let (handler, listener) = node::split::<()>();
-    let (_srv, _hnd) = Server::<()>::new();
+    let sock = UdpSocket::bind(addr).await.unwrap();
 
-    handler
-        .network()
-        .listen(Transport::FramedTcp, addr)
-        .unwrap();
-    listener.for_each(move |event| match event.network() {
-        NetEvent::Connected(_, _) => {}
-        NetEvent::Accepted(endpoint, _) => {
-            info!("Accepted connection by {}", endpoint);
-        }
-        NetEvent::Message(endpoint, data) => {
-            let msg_reader = match serialize_packed::read_message(
-                data,
-                ::capnp::message::ReaderOptions::new(),
-            ) {
-                Ok(msg) => msg,
-                Err(err) => {
-                    error!("Could not read message by {} due to {}", endpoint, err);
-                    return;
-                }
-            };
-        }
-        NetEvent::Disconnected(endpoint) => {
-            warn!("Client {} has disconnected", endpoint);
-        }
-    });
+    loop {
+        let mut buf = [0; 4096*4];
+        let (len, addr) = match sock.recv_from(&mut buf).await {
+            Ok(v) => v, 
+            Err(err) => {
+                error!("ERROR {}", err);
+                continue;
+            }
+        };
+    }
 }
