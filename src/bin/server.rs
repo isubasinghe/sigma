@@ -1,5 +1,6 @@
 use capnp::serialize_packed;
 use sigma::shared::server::*;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::net::ToSocketAddrs;
 use std::time::Duration;
 
@@ -12,6 +13,7 @@ use opentelemetry::KeyValue;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 use tokio::net::UdpSocket;
+use tokio::net::TcpListener;
 use std::io;
 
 const PORT: u16 = 3001;
@@ -46,16 +48,30 @@ async fn main() {
 
 
     let addr = ("0.0.0.0", PORT).to_socket_addrs().unwrap().next().unwrap();
-    let sock = UdpSocket::bind(addr).await.unwrap();
+
+    let listener = match TcpListener::bind(addr).await {
+        Ok(l) => l, 
+        Err(e) => return
+    };
 
     loop {
-        let mut buf = [0; 4096*4];
-        let (len, addr) = match sock.recv_from(&mut buf).await {
+        let (mut sock,_) = match listener.accept().await {
             Ok(v) => v, 
-            Err(err) => {
-                error!("ERROR {}", err);
-                continue;
-            }
+            Err(e) => continue
         };
+        tokio::spawn(async move {
+            loop {
+                let sz = match sock.read_u16().await {
+                    Ok(sz) => sz, 
+                    Err(e) => continue
+                };
+                let sz = usize::from(sz);
+                let mut buf: Vec<u8> = Vec::with_capacity(sz);
+                let data = match sock.read_exact(&mut buf).await {
+                    Ok(data) => data, 
+                    Err(_) => continue
+                };
+            }   
+        });
     }
 }
