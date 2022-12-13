@@ -1,27 +1,22 @@
 use capnp::serialize_packed;
-use sigma::shared::server::*;
-use std::i8::MAX;
 use std::net::ToSocketAddrs;
-use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+// use std::time::Duration;
+use tokio::io::AsyncReadExt;
 
-use opentelemetry::sdk::export::trace::stdout;
+// use opentelemetry::sdk::export::trace::stdout;
 use opentelemetry::sdk::trace::{self, Sampler};
 use tracing::{error, info, info_span, warn};
 
 use opentelemetry::sdk::Resource;
 use opentelemetry::KeyValue;
-use std::io;
+use sigma::shared::proto_capnp::*;
 use tokio::net::TcpListener;
-use tokio::net::UdpSocket;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
-use sigma::shared::proto_capnp::*;
 
 const PORT: u16 = 3001;
 const MAX_RETRIES: u64 = 10;
 
-fn handle_client() {}
 #[tokio::main]
 async fn main() {
     // Create a new OpenTelemetry pipeline
@@ -57,13 +52,19 @@ async fn main() {
 
     let listener = match TcpListener::bind(addr).await {
         Ok(l) => l,
-        Err(e) => return,
+        Err(e) => {
+            error!("Unable to bind due to {}", e);
+            return;
+        }
     };
 
     loop {
         let (mut sock, _) = match listener.accept().await {
             Ok(v) => v,
-            Err(e) => continue,
+            Err(e) => {
+                warn!("Unable to accept due to {}, skipping", e);
+                continue;
+            }
         };
         tokio::spawn(async move {
             let mut retries: u64 = 0;
@@ -73,56 +74,76 @@ async fn main() {
                     Ok(sz) => sz,
                     Err(e) => {
                         if retries == MAX_RETRIES {
+                            error!("MAX_RETRIES exceeded, dropping client due to {}", e);
                             return;
                         }
+                        warn!("Error reading u16 due to {}", e);
                         continue;
                     }
                 };
                 let sz = usize::from(sz);
                 let mut buf: Vec<u8> = Vec::with_capacity(sz);
-                let data = match sock.read_exact(&mut buf).await {
+                // TODO: figure out what this return value is
+                let _data = match sock.read_exact(&mut buf).await {
                     Ok(data) => data,
                     Err(e) => {
+                        // TODO: drop client if bytes read != sz
                         if retries == MAX_RETRIES {
                             return;
                         }
+                        warn!("Unable to read {} bytes due to {}", sz, e);
                         continue;
                     }
                 };
+
                 let buf = std::io::BufReader::new(buf.as_slice());
-                let message_reader = match serialize_packed::read_message(buf, ::capnp::message::ReaderOptions::new()) {
-                    Ok(msg_reader) => msg_reader, 
+                let message_reader = match serialize_packed::read_message(
+                    buf,
+                    ::capnp::message::ReaderOptions::new(),
+                ) {
+                    Ok(msg_reader) => msg_reader,
                     Err(e) => {
                         if retries == MAX_RETRIES {
+                            error!(
+                                "Unable to setup message reader due to {}, dropping connection",
+                                e
+                            );
                             return;
                         }
+                        warn!("Unable to setup message reader due to {}", e);
                         continue;
                     }
                 };
                 let request = match message_reader.get_root::<request::Reader>() {
-                    Ok(r) => r, 
+                    Ok(r) => r,
                     Err(e) => {
                         if retries == MAX_RETRIES {
+                            error!(
+                                "Unable to get message root due to {}, dropping connection",
+                                e
+                            );
                             return;
                         }
+                        warn!("Unable to get message root due to {}", e);
                         continue;
                     }
                 };
                 let request = match request.which() {
-                    Ok(r) => r, 
+                    Ok(r) => r,
                     Err(e) => {
                         if retries == MAX_RETRIES {
+                            error!("Unable to obtain correct union variant due to {}, dropping connection", e);
                             return;
                         }
+                        warn!("Unable to obtain correct enum variant due to {}", e);
                         continue;
                     }
                 };
                 match request {
-                    request::Which::RegisterClient(c) => {
-                    }
-                    request::Which::MakeLock(l) => {}
+                    request::Which::RegisterClient(c) => {}
+                    request::Which::MakeLock(_l) => {}
                 }
-                
+
                 retries = 0;
             }
         });
